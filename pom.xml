@@ -5,17 +5,18 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.cyphera</groupId>
-    <artifactId>cyphera-hibernate-jpa</artifactId>
+    <artifactId>cyphera-hibernate</artifactId>
     <version>0.1.0</version>
     <packaging>jar</packaging>
 
-    <name>Cyphera Hibernate/JPA</name>
-    <description>Transparent field-level format-preserving encryption for Hibernate/JPA via AttributeConverter</description>
+    <name>Cyphera Hibernate</name>
+    <description>Transparent field-level format-preserving encryption for Hibernate</description>
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <hibernate.version>6.4.4.Final</hibernate.version>
     </properties>
 
     <dependencies>
@@ -25,9 +26,9 @@
             <version>0.0.1-alpha.3</version>
         </dependency>
         <dependency>
-            <groupId>jakarta.persistence</groupId>
-            <artifactId>jakarta.persistence-api</artifactId>
-            <version>3.1.0</version>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>${hibernate.version}</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
@@ -46,7 +47,8 @@
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                             <artifactSet>
                                 <excludes>
-                                    <exclude>jakarta.persistence:jakarta.persistence-api</exclude>
+                                    <exclude>org.hibernate.orm:*</exclude>
+                                    <exclude>jakarta.persistence:*</exclude>
                                 </excludes>
                             </artifactSet>
                         </configuration>
