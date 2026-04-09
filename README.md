@@ -1,9 +1,9 @@
-# cyphera-hibernate-jpa
+# cyphera-hibernate
 
-[![CI](https://github.com/cyphera-labs/cyphera-hibernate-jpa/actions/workflows/ci.yml/badge.svg)](https://github.com/cyphera-labs/cyphera-hibernate-jpa/actions/workflows/ci.yml)
+[![CI](https://github.com/cyphera-labs/cyphera-hibernate/actions/workflows/ci.yml/badge.svg)](https://github.com/cyphera-labs/cyphera-hibernate/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-Transparent field-level format-preserving encryption for [Hibernate](https://hibernate.org/) and [JPA](https://jakarta.ee/specifications/persistence/) — annotate a field, data is protected on write and accessed on read. Zero code changes to your business logic.
+Transparent field-level format-preserving encryption for [Hibernate](https://hibernate.org/). Annotate a field, data is protected on write and accessed on read. Zero boilerplate.
 
 Built on [`io.cyphera:cyphera`](https://central.sonatype.com/artifact/io.cyphera/cyphera) from Maven Central.
 
@@ -14,12 +14,12 @@ Add the dependency:
 ```xml
 <dependency>
     <groupId>io.cyphera</groupId>
-    <artifactId>cyphera-hibernate-jpa</artifactId>
+    <artifactId>cyphera-hibernate</artifactId>
     <version>VERSION</version>
 </dependency>
 ```
 
-Annotate your entity:
+Add `cyphera.json` to your classpath or `/etc/cyphera/cyphera.json`. Annotate your fields:
 
 ```java
 @Entity
@@ -30,134 +30,76 @@ public class Customer {
 
     private String name;
 
-    @Convert(converter = SsnConverter.class)
+    @CypheraProtect("ssn")
     private String ssn;
 
-    @Convert(converter = CreditCardConverter.class)
+    @CypheraProtect("credit_card")
     private String creditCard;
-
-    // getters, setters...
 }
 ```
 
-That's it. SSN and credit card are encrypted with FPE on every INSERT/UPDATE and decrypted on every SELECT. Your application code never sees the protected values.
+That's it. The Hibernate Integrator auto-discovers `@CypheraProtect` fields at boot. No converter classes, no config classes, no wiring.
+
+- INSERT/UPDATE: `ssn` → `T01i6J-xF-07pX` in the database
+- SELECT: `T01i6J-xF-07pX` → `123-45-6789` back to the entity
+- Your code only sees plaintext. The database only sees ciphertext.
 
 ## Build
-
-### From source
 
 ```bash
 mvn package -DskipTests
 ```
 
-### Via Docker
-
-```bash
-docker build -t cyphera-hibernate-jpa .
-```
-
 ## Install / Deploy
 
-1. Add the Maven dependency to your project
-2. Place `cyphera.json` on the classpath or at `/etc/cyphera/cyphera.json`
-3. Set `CYPHERA_POLICY_FILE` env var if using a custom path
-4. Use built-in converters or create your own
-
-## Usage
-
-### Built-in Converters
-
-| Converter | Policy | Use Case |
-|-----------|--------|----------|
-| `SsnConverter` | `ssn` | Social security numbers |
-| `CreditCardConverter` | `credit_card` | Credit card numbers |
-
-### Custom Converters
-
-Create a converter for any policy in one line:
-
-```java
-@Converter
-public class PhoneConverter extends CypheraConverter {
-    public PhoneConverter() { super("phone"); }
-}
-```
-
-Then use it:
-
-```java
-@Convert(converter = PhoneConverter.class)
-private String phone;
-```
-
-### What Happens
-
-```java
-// Your code writes plaintext
-customer.setSsn("123-45-6789");
-repo.save(customer);
-// Database stores: "T01i6J-xF-07pX" (tagged, dashes preserved)
-
-// Your code reads plaintext
-Customer c = repo.findById(1L);
-c.getSsn(); // → "123-45-6789" (transparently accessed)
-```
-
-The database column contains protected data. Your application only sees plaintext. Tags are embedded so the converter knows which policy was used.
+1. Add the Maven dependency
+2. Place `cyphera.json` on classpath or at `/etc/cyphera/cyphera.json` (or set `CYPHERA_POLICY_FILE` env var)
+3. Annotate fields with `@CypheraProtect("policy_name")`
+4. Done — the Integrator handles the rest via `META-INF/services` auto-discovery
 
 ### Column Sizing
 
-Tags add 3 characters to the output. Make sure your database columns have room:
+Tags add 3 characters. Ensure your columns have room: **existing width + 3**. Or set `tag_enabled: false` in the policy for same-length output.
 
-| Field | Plaintext Length | Protected Length | Minimum Column |
-|-------|-----------------|------------------|----------------|
-| SSN (`123-45-6789`) | 11 | 14 | `VARCHAR(14)` |
-| Credit Card (`4111111111111111`) | 16 | 19 | `VARCHAR(19)` |
-| Phone (`555-123-4567`) | 12 | 15 | `VARCHAR(15)` |
+## How It Works
 
-Rule of thumb: **existing column width + 3** (tag length). One-time schema change when you enable protection. If you use alphanumeric (default), the protected characters are `0-9a-zA-Z` — safe for any `VARCHAR` column.
+1. **Boot**: `CypheraIntegrator` auto-discovered via `META-INF/services`. Registers event listeners.
+2. **Scan**: On first access, scans entity fields for `@CypheraProtect` and caches field→policy mapping.
+3. **Write**: PreInsert/PreUpdate modify the Hibernate state array — database gets ciphertext, entity keeps plaintext.
+4. **Read**: PostLoad decrypts fields on the entity after loading.
+5. **SDK**: `CypheraHolder` auto-discovers `cyphera.json` if not explicitly configured.
 
-**Can't change the column?** Set `tag_enabled: false` in the policy — output stays the same length as input. The trade-off: the converter needs the policy name explicitly on access (which it already has), but tag-based auto-discovery won't work outside the converter.
+## Alternative Modes
 
-### Works with any JPA provider
+### Explicit `@Type` (full Hibernate control)
 
-- Hibernate (5.x, 6.x)
-- EclipseLink
-- Any Jakarta Persistence 3.x compliant provider
+```java
+@Type(value = CypheraType.class, parameters = @Parameter(name = "policy", value = "ssn"))
+private String ssn;
+```
+
+### JPA Compatibility (non-Hibernate providers)
+
+```java
+@Converter
+public class SsnConverter extends io.cyphera.hibernate.compat.CypheraConverter {
+    public SsnConverter() { super("ssn"); }
+}
+```
 
 ## Operations
 
 ### Policy Configuration
 
-- Policy file: `/etc/cyphera/cyphera.json` or `CYPHERA_POLICY_FILE` env var
-- Or classpath: place `cyphera.json` in `src/main/resources/`
-- Policy loaded on first converter use — restart application to reload
-
-### Monitoring
-
-- Converter errors throw `RuntimeException` — surfaces in your application's error handling
-- Check application logs for `CypheraLoader` entries at startup
-
-### Upgrading
-
-1. Bump the dependency version in `pom.xml`
-2. Rebuild and redeploy
+- Auto-discover: `CYPHERA_POLICY_FILE` env → `./cyphera.json` → `/etc/cyphera/cyphera.json`
+- Explicit: `CypheraHolder.set(Cyphera.fromFile("path"))` at bootstrap
+- Spring Boot: auto-config handles it (if cyphera-spring is also on classpath)
 
 ### Troubleshooting
 
-- **"Unknown policy"** — converter references a policy name not in `cyphera.json`
-- **"No matching tag"** — database contains data protected with a different policy/tag. Check tag configuration.
-- **Null values** — converters pass through nulls safely, no encryption applied
-- **Existing unprotected data** — run a migration to protect existing rows: `UPDATE customers SET ssn = cyphera_protect('ssn', ssn)`
-
-### Migrating Existing Data
-
-If you have unprotected data in the database, you need to protect it before enabling the converter. Use a SQL migration with the Cyphera database UDFs (Trino, Postgres, etc.) or a batch script:
-
-```sql
--- Using cyphera-postgres or cyphera-trino
-UPDATE customers SET ssn = cyphera_protect('ssn', ssn) WHERE ssn NOT LIKE 'T01%';
-```
+- **"Unknown policy"** — `@CypheraProtect("...")` doesn't match `cyphera.json`
+- **Integrator not loading** — check `META-INF/services` is in the JAR
+- **No policy file** — ensure `cyphera.json` exists at one of the auto-discover locations
 
 ## Policy File
 
@@ -165,8 +107,7 @@ UPDATE customers SET ssn = cyphera_protect('ssn', ssn) WHERE ssn NOT LIKE 'T01%'
 {
   "policies": {
     "ssn": { "engine": "ff1", "key_ref": "my-key", "tag": "T01" },
-    "credit_card": { "engine": "ff1", "key_ref": "my-key", "tag": "T02" },
-    "phone": { "engine": "ff1", "key_ref": "my-key", "tag": "T03" }
+    "credit_card": { "engine": "ff1", "key_ref": "my-key", "tag": "T02" }
   },
   "keys": {
     "my-key": { "material": "2B7E151628AED2A6ABF7158809CF4F3C" }
@@ -176,11 +117,10 @@ UPDATE customers SET ssn = cyphera_protect('ssn', ssn) WHERE ssn NOT LIKE 'T01%'
 
 ## Future
 
-- Auto-registration via `@Converter(autoApply = true)` for global field protection
-- Spring Boot auto-configuration (detect `cyphera.json` and register converters)
+- SPI extension points: custom PolicyResolver, FieldProcessor, MetadataResolver
+- Spring Boot auto-configuration for CypheraHolder
+- Hibernate 5 `@TypeDef` compatibility
 - Audit logging integration
-- Batch protect/access for bulk operations
-- Support for `javax.persistence` (JPA 2.x) in addition to `jakarta.persistence` (JPA 3.x)
 
 ## License
 
