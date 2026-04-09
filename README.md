@@ -117,6 +117,8 @@ Tags add 3 characters to the output. Make sure your database columns have room:
 
 Rule of thumb: **existing column width + 3** (tag length). One-time schema change when you enable protection. If you use alphanumeric (default), the protected characters are `0-9a-zA-Z` — safe for any `VARCHAR` column.
 
+**Can't change the column?** Set `tag_enabled: false` in the policy — output stays the same length as input. The trade-off: the converter needs the policy name explicitly on access (which it already has), but tag-based auto-discovery won't work outside the converter.
+
 ### Works with any JPA provider
 
 - Hibernate (5.x, 6.x)
