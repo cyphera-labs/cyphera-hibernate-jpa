@@ -105,6 +105,18 @@ c.getSsn(); // → "123-45-6789" (transparently accessed)
 
 The database column contains protected data. Your application only sees plaintext. Tags are embedded so the converter knows which policy was used.
 
+### Column Sizing
+
+Tags add 3 characters to the output. Make sure your database columns have room:
+
+| Field | Plaintext Length | Protected Length | Minimum Column |
+|-------|-----------------|------------------|----------------|
+| SSN (`123-45-6789`) | 11 | 14 | `VARCHAR(14)` |
+| Credit Card (`4111111111111111`) | 16 | 19 | `VARCHAR(19)` |
+| Phone (`555-123-4567`) | 12 | 15 | `VARCHAR(15)` |
+
+Rule of thumb: **existing column width + 3** (tag length). One-time schema change when you enable protection. If you use alphanumeric (default), the protected characters are `0-9a-zA-Z` — safe for any `VARCHAR` column.
+
 ### Works with any JPA provider
 
 - Hibernate (5.x, 6.x)
