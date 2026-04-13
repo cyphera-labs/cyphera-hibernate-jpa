@@ -1,0 +1,20 @@
+{
+  "policies": {
+    "ssn": {
+      "engine": "ff1",
+      "key_ref": "test-key",
+      "tag": "T01"
+    },
+    "name": {
+      "engine": "ff1",
+      "alphabet": "alpha_lower",
+      "key_ref": "test-key",
+      "tag": "T03"
+    }
+  },
+  "keys": {
+    "test-key": {
+      "material": "2B7E151628AED2A6ABF7158809CF4F3C"
+    }
+  }
+}
