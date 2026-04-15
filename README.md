@@ -1,6 +1,7 @@
 # cyphera-hibernate
 
 [![CI](https://github.com/cyphera-labs/cyphera-hibernate/actions/workflows/ci.yml/badge.svg)](https://github.com/cyphera-labs/cyphera-hibernate/actions/workflows/ci.yml)
+[![Security](https://github.com/cyphera-labs/cyphera-hibernate/actions/workflows/codeql.yml/badge.svg)](https://github.com/cyphera-labs/cyphera-hibernate/actions/workflows/codeql.yml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
 Transparent field-level format-preserving encryption for [Hibernate](https://hibernate.org/). Annotate a field, data is protected on write and accessed on read. Zero boilerplate.
